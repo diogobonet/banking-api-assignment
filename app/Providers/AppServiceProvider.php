@@ -3,6 +3,8 @@
 namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
+use App\Modules\Banking\Core\Interfaces\AccountRepositoryInterface;
+use App\Modules\Banking\Infrastructure\Repositories\InMemoryAccountRepository;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -11,7 +13,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->singleton(
+            AccountRepositoryInterface::class,
+            InMemoryAccountRepository::class
+        );
     }
 
     /**
