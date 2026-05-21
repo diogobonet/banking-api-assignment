@@ -26,7 +26,7 @@ class EventController extends Controller
     public function store(EventRequest $request): JsonResponse
     {
         return match ($request->validated('type')) {
-            'deposit' => $this->handleDeposit($request),
+            'deposit'  => $this->handleDeposit($request),
             'withdraw' => $this->handleWithdraw($request),
             'transfer' => $this->handleTransfer($request),
         };
@@ -43,9 +43,9 @@ class EventController extends Controller
             (float) $request->validated('amount'),
         );
 
-        return response()->json([
+        return $this->created([
             'destination' => ['id' => $account->getId(), 'balance' => $account->getBalance()],
-        ], 201);
+        ]);
     }
 
     /**
@@ -60,13 +60,13 @@ class EventController extends Controller
                 (float) $request->validated('amount'),
             );
 
-            return response()->json([
+            return $this->created([
                 'origin' => ['id' => $account->getId(), 'balance' => $account->getBalance()],
-            ], 201);
+            ]);
         } catch (AccountNotFoundException) {
-            return response()->json(0, 404);
+            return $this->notFound();
         } catch (InsufficientFundsException) {
-            return response()->json(0, 422);
+            return $this->insufficientFunds();
         }
     }
 
@@ -83,14 +83,14 @@ class EventController extends Controller
                 (float) $request->validated('amount'),
             );
 
-            return response()->json([
-                'origin' => ['id' => $origin->getId(), 'balance' => $origin->getBalance()],
+            return $this->created([
+                'origin'      => ['id' => $origin->getId(), 'balance' => $origin->getBalance()],
                 'destination' => ['id' => $destination->getId(), 'balance' => $destination->getBalance()],
-            ], 201);
+            ]);
         } catch (AccountNotFoundException) {
-            return response()->json(0, 404);
+            return $this->notFound();
         } catch (InsufficientFundsException) {
-            return response()->json(0, 422);
+            return $this->insufficientFunds();
         }
     }
 }
