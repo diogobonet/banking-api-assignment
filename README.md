@@ -1,199 +1,85 @@
 # EBANX Take-Home Assignment
 
-A simple banking API supporting deposit, withdraw, and transfer operations between accounts. State is kept in memory — no database required.
-
----
+A simple banking API with deposit, withdraw and transfer operations. No database, the state lives in memory.
 
 ## Requirements
 
 - [Docker](https://www.docker.com/)
 - [Docker Compose](https://docs.docker.com/compose/)
 
----
-
 ## Running the project
 
 ```bash
-# Build and start the container
 docker compose up -d --build
-
-# The API will be available at:
-# http://localhost:8000
 ```
+
+The API will be available at `http://localhost:8000`.
+
+Other useful commands:
 
 ```bash
-# View logs
-docker compose logs -f app
-
-# Stop the container
-docker compose down
-
-# Run the test suite
-docker compose exec app php artisan test
-
-# Access the container shell
-docker compose exec app bash
+docker compose logs -f app          # view logs
+docker compose down                 # stop the container
+docker compose exec app php artisan test  # run tests
+docker compose exec app bash        # access the shell
 ```
-
----
 
 ## Endpoints
 
-### `POST /reset`
+### POST /reset
 
-Clears all in-memory state.
+Clears all state. Useful for resetting between test runs.
 
-**Response:** `200 OK`
 ```
-OK
+200 OK
 ```
 
----
+### GET /balance
 
-### `GET /balance`
+Returns the balance for a given account. Returns `0` with status `404` if the account doesn't exist.
 
-Returns the balance of an account.
-
-**Query params:** `account_id` (string)
-
-**Responses:**
-- `200` — account balance
-- `404` — account not found
-
-```bash
+```
 GET /balance?account_id=100
-
-# Existing account → 200
-10
-
-# Non-existing account → 404
-0
 ```
 
----
+### POST /event
 
-### `POST /event`
+Handles three types of operations based on the `type` field.
 
-Executes a banking operation. The `type` field determines the operation.
-
-**Headers:** `Content-Type: application/json`
-
-#### Deposit
-
+**Deposit** — creates the account if it doesn't exist yet:
 ```json
-{
-    "type": "deposit",
-    "destination": "100",
-    "amount": 10
-}
+{ "type": "deposit", "destination": "100", "amount": 10 }
 ```
-
-**Response `201`:**
 ```json
-{
-    "destination": {
-        "id": "100",
-        "balance": 10
-    }
-}
+201 { "destination": { "id": "100", "balance": 10 } }
 ```
 
----
-
-#### Withdraw
-
+**Withdraw** — returns `404` if the account doesn't exist:
 ```json
-{
-    "type": "withdraw",
-    "origin": "100",
-    "amount": 5
-}
+{ "type": "withdraw", "origin": "100", "amount": 5 }
 ```
-
-**Response `201`:**
 ```json
-{
-    "origin": {
-        "id": "100",
-        "balance": 5
-    }
-}
+201 { "origin": { "id": "100", "balance": 5 } }
 ```
 
-**Response `404`** — origin account does not exist:
-```
-0
-```
-
----
-
-#### Transfer
-
+**Transfer** — creates destination if it doesn't exist, returns `404` if origin doesn't exist:
 ```json
-{
-    "type": "transfer",
-    "origin": "100",
-    "destination": "300",
-    "amount": 15
-}
+{ "type": "transfer", "origin": "100", "destination": "300", "amount": 15 }
 ```
-
-**Response `201`:**
 ```json
-{
-    "origin": {
-        "id": "100",
-        "balance": 0
-    },
-    "destination": {
-        "id": "300",
-        "balance": 15
-    }
-}
+201 { "origin": { "id": "100", "balance": 0 }, "destination": { "id": "300", "balance": 15 } }
 ```
 
-**Response `404`** — origin account does not exist:
-```
-0
-```
-
----
-
-## Tests
+## Running the tests
 
 ```bash
 docker compose exec app php artisan test
 ```
 
-Test coverage includes:
-
-- Balance check for existing and non-existing accounts
-- Deposit into a new and an existing account
-- Withdraw with sufficient and insufficient funds
-- Transfer between accounts (creating destination if it does not exist)
-- Operations on non-existing accounts
-- Verification that GET does not alter state
-
----
+The test suite covers the main flows (deposit, withdraw, transfer), error cases like non-existing accounts and insufficient funds, and verifies that GET requests don't change any state.
 
 ## Technical decisions
 
-### Storage
+The project is structured as a Modular Monolith with the `Banking` module split into three layers: `Core` for business rules, `Infrastructure` for the cache-based repository, and `UI` for the HTTP layer. The `Core` has no dependency on Laravel, it only knows about domain concepts.
 
-State is kept using **Laravel Cache with the `array` driver** in tests and the **`file` driver** in local environment. This provides persistence across requests without requiring a database, as specified.
-
-### Architecture
-
-The project follows a **Modular Monolith** pattern with three layers inside the `Banking` module:
-
-| Layer | Responsibility |
-|---|---|
-| `Core` | Business rules (no framework dependency) |
-| `Infrastructure` | Technical implementation (cache, repositories) |
-| `UI` | HTTP entry point (controllers, form requests, routes) |
-
-Business logic lives in the `Core` and has no knowledge of Laravel, HTTP, or cache. Any technical detail can be replaced without touching the rules.
-
-### Atomic transfers
-
-`TransferUseCase` performs the withdraw from the origin and the deposit into the destination before persisting either account. If the withdraw fails due to insufficient funds, no state is saved — consistency is guaranteed.
+Since no database is required, state is stored via Laravel's cache (file driver in local, array driver in tests). Transfers are handled atomically: the withdraw and deposit both happen before anything is persisted, so if the origin has insufficient funds, neither account is updated.
